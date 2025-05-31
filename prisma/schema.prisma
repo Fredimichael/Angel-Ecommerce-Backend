@@ -1,0 +1,360 @@
+// -----------------------------
+// Global Definitions
+// -----------------------------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------
+// Enums
+// -----------------------------
+enum GenderType {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum BehaviorRating {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  UNACCEPTABLE
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum SaleChannel {
+  ONLINE_WEB
+  IN_PERSON_STORE
+}
+
+enum PaymentMethodType {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD_POS
+  DEBIT_CARD_POS
+  MERCADO_PAGO_ONLINE
+  CLIENT_CREDIT
+}
+
+// -----------------------------
+// Core Models
+// -----------------------------
+model User {
+  id        String   @id @default(cuid())
+  username  String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Client {
+  id                        String         @id @default(cuid())
+  firstName                 String         @map("first_name")
+  lastName                  String         @map("last_name")
+  birthDate                 DateTime?      @map("birth_date")
+  gender                    GenderType?
+  email                     String?        @unique
+  phone                     String
+  address                   String
+  country                   String
+  state                     String
+  city                      String
+  postalCode                String         @map("postal_code")
+  dni                       String?        @unique
+  cuil                      String?        @unique
+  creditLimit               Float          @default(0)
+  cashLimit                 Float          @default(0)
+  currentBalance            Float          @default(0)
+  behaviorRating            BehaviorRating @default(GOOD)
+  serviceReceipt            String?        @map("service_receipt")
+  notes                     String?
+  isWholesale               Boolean        @default(false)
+  registeredThroughCheckout Boolean        @default(false)
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+  lastPurchaseAt            DateTime?      @map("last_purchase_at")
+
+  orders           Order[]
+  wholesaleLinks   WholesaleLink[]
+  saleTransactions SaleTransaction[]
+
+  @@index([firstName, lastName])
+  @@index([email])
+  @@index([phone])
+  @@index([dni])
+  @@index([cuil])
+  @@index([behaviorRating])
+  @@map("clients")
+}
+
+model Product {
+  id                  String   @id @default(cuid())
+  name                String
+  description         String
+  image               String[]
+  price               Float
+  wholesalePrice      Float?
+  minWholesaleQty     Int?
+  onOffer             Boolean  @default(false)
+  isNew               Boolean  @default(false)
+  code                String   @unique
+  barcode             String   @unique
+  shippingInfo        String
+  cost                Float
+  margin              Float
+  tax                 Float
+  brand               String
+  weightKg            Float
+  unitsPerBox         Int
+  unitsPerBulk        Int
+  subcategoryId       String
+  subcategory         Subcategory @relation(fields: [subcategoryId], references: [id])
+  supplierId          Int
+  supplier            Supplier @relation(fields: [supplierId], references: [id])
+  supplierProductCode String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  hidden              Boolean  @default(false)
+  
+  // initialStock: Representa el stock total inicial adquirido ANTES de distribuirlo a sucursales.
+  // Opcional, dependiendo de si necesitas este nivel de detalle para el stock "en depósito central".
+  initialStock        Int?     @default(0)
+
+  // stock: Representa el STOCK GLOBAL CONSOLIDADO (suma de stock en todas las sucursales).
+  // Este campo debería ser gestionado/calculado por tu lógica de aplicación.
+  stock               Int      @default(0)
+
+  orderItems     OrderItem[]
+  storeStock     StoreProduct[] // Stock específico por sucursal
+  stockTransfers StockTransfer[]
+  wholesaleLinks WholesaleLink[] @relation("WholesaleProducts")
+}
+
+model Order {
+  id            Int      @id @default(autoincrement())
+  userId        String
+  total         Float
+  status        OrderStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clientId        String?
+  client          Client?  @relation(fields: [clientId], references: [id])
+  
+  sellerId        Int?
+  seller          Seller?  @relation(fields: [sellerId], references: [id])
+
+  wholesaleLinkId String?
+  wholesaleLink   WholesaleLink? @relation(fields: [wholesaleLinkId], references: [id])
+  
+  orderItems       OrderItem[]
+  saleTransactions SaleTransaction[]
+
+  shippingAddress String?
+  shippingCity    String?
+  shippingState   String?
+  shippingZipCode String?
+
+  saleChannel     SaleChannel? // Para saber cómo se originó
+  storeId         String?      // Si fue IN_PERSON_STORE, qué tienda
+  store        Store?       @relation(fields: [storeId], references: [id]) // Si añades storeId
+
+}
+
+// -----------------------------
+// Product Organization & Supply
+// -----------------------------
+model Category {
+  id            String        @id @default(cuid())
+  name          String
+  image         String
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  id         String    @id @default(cuid())
+  name       String
+  image      String
+  categoryId String
+  category   Category  @relation(fields: [categoryId], references: [id])
+  products   Product[]
+}
+
+model Supplier {
+  id          Int       @id @default(autoincrement())
+  name        String
+  email       String    @unique
+  phone       String
+  web         String?
+  user        String
+  password    String
+  description String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+// -----------------------------
+// Inventory & Store Management
+// -----------------------------
+model Store {
+  id      String @id @default(cuid())
+  name    String
+  address String
+
+  stock             StoreProduct[]    // Productos y su stock en esta sucursal
+  outgoingTransfers StockTransfer[]   @relation("FromStore")
+  incomingTransfers StockTransfer[]   @relation("ToStore")
+  saleTransactions  SaleTransaction[] // Ventas realizadas en esta tienda
+  orders            Order[]           // Relación inversa para las órdenes de esta tienda
+}
+
+model StoreProduct {
+  id        String  @id @default(cuid())
+  storeId   String
+  productId String
+  quantity  Int     // Stock real de este producto EN ESTA SUCURSAL
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([storeId, productId])
+  @@map("store_products")
+}
+
+model StockTransfer {
+  id          String   @id @default(cuid())
+  fromStoreId String
+  toStoreId   String
+  productId   String
+  quantity    Int
+  createdAt   DateTime @default(now())
+
+  fromStore Store   @relation("FromStore", fields: [fromStoreId], references: [id])
+  toStore   Store   @relation("ToStore", fields: [toStoreId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("stock_transfers")
+}
+
+// -----------------------------
+// Sales & Transactions
+// -----------------------------
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  productId String
+  quantity  Int
+  price     Float // Precio al momento de la venta
+  total     Float // quantity * price
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model SaleTransaction {
+  id              String            @id @default(cuid())
+  orderId         Int
+  order           Order             @relation(fields: [orderId], references: [id])
+  clientId        String
+  client          Client            @relation(fields: [clientId], references: [id])
+  storeId         String?
+  store           Store?            @relation(fields: [storeId], references: [id])
+  sellerId        Int?
+  seller          Seller?           @relation(fields: [sellerId], references: [id])
+
+  saleChannel     SaleChannel
+  paymentMethod   PaymentMethodType
+  amount          Float
+  transactionDate DateTime          @default(now())
+
+  paymentGatewayId      String?
+  paymentGatewayStatus  String?
+  posTransactionId      String?
+  bankTransferReference String?
+  amountReceivedByClient Float?
+  changeGivenToClient    Float?
+  notes                 String?           @db.Text
+
+  @@map("sale_transactions")
+}
+
+model Seller {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders           Order[]
+  saleTransactions SaleTransaction[]
+}
+
+// -----------------------------
+// Marketing & Display
+// -----------------------------
+model Carousel {
+  id        Int      @id @default(autoincrement())
+  image     String
+  title     String
+  subtitle  String
+  link      String
+  accent    String
+  isOffer   Boolean  @default(false)
+  discount  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------
+// Wholesale Features
+// -----------------------------
+model WholesaleLink {
+  id              String    @id @default(cuid())
+  token           String    @unique
+  name            String
+  discount        Float     @default(0)
+  expiresAt       DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  uses            Int       @default(0)
+  lastUsedAt      DateTime?
+  customerName    String?
+  customerEmail   String?
+  customerPhone   String?
+  customerAddress String?
+  businessName    String?
+  taxId           String?
+  notes           String?   @db.Text
+  createdBy       String?
+  customSlug      String?   @unique
+
+  products Product[] @relation("WholesaleProducts")
+  orders   Order[]
+  
+  clientId String?
+  client   Client?   @relation(fields: [clientId], references: [id])
+
+  @@index([token])
+  @@index([customerEmail])
+  @@index([isActive, expiresAt])
+  @@map("wholesale_links")
+}
