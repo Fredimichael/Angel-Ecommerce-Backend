@@ -11,7 +11,8 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
+# .gitignore
+src/config/river-blade-429300-d8-d9b60ef9f3da.json
 # OS
 .DS_Store
 
