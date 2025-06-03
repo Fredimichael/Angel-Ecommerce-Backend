@@ -144,6 +144,50 @@ model Product {
   storeStock     StoreProduct[] // Stock específico por sucursal
   stockTransfers StockTransfer[]
   wholesaleLinks WholesaleLink[] @relation("WholesaleProducts")
+
+//DESCUENTOS
+  volumeDiscounts      ProductVolumeDiscount[]  // Para descuentos por cantidad del mismo artículo
+  boxConfigurations    ProductBoxConfig[]       // Para venta por cajas/paquetes 
+}
+
+model ProductVolumeDiscount {
+  id            String  @id @default(cuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  minQuantity   Int     // Cantidad mínima de este artículo para que aplique el precio/descuento
+                        // Ej: 2 para "2 productos con 5% descuento"
+                        // Ej: 4 para "4 productos con 10% descuento"
+
+  discountPercentage Float // Porcentaje de descuento aplicado cuando se alcanza minQuantity.
+                           // Ej: 5.0 para 5% de descuento, 10.0 para 10% de descuento
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, minQuantity]) // Un producto no puede tener dos reglas para la misma cantidad mínima
+  @@map("product_volume_discounts")
+}
+
+model ProductBoxConfig {
+  id             String  @id @default(cuid())
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  name           String  // Nombre descriptivo del paquete, ej: "Caja de 6 Calculadoras", "Pack Económico (12u.)"
+  quantityInBox  Int     // Cantidad de unidades del producto que contiene esta caja/paquete (ej: 6, 12)
+  totalBoxPrice  Float   // Precio TOTAL de esta caja/paquete.
+                         // Ej: Si una caja de 6 calculadoras cuesta 540 ARS, este valor es 540.
+
+  // Opcional: SKU específico para la caja si se maneja así en el inventario
+  sku            String? @unique
+
+  isActive       Boolean @default(true) // Para poder activar/desactivar la venta de esta caja
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_box_configs")
 }
 
 model Order {

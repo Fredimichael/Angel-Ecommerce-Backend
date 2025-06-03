@@ -1,4 +1,7 @@
-import { IsString, IsNumber, IsArray, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsArray, IsBoolean, IsOptional, ValidateNested, IsInt, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateProductVolumeDiscountDto } from './create-product-volume-discount.dto'; // Asegúrate que la ruta sea correcta
+import { CreateProductBoxConfigDto } from './create-product-box-config.dto';     // Asegúrate que la ruta sea correcta
 
 export class CreateProductDto {
   @IsString()
@@ -7,6 +10,11 @@ export class CreateProductDto {
   @IsString()
   description: string;
 
+  @IsNumber()
+  @Min(0)
+  price: number; // Precio base por unidad
+
+  // ... otros campos existentes de Product (code, barcode, stock, subcategoryId, etc.)
   @IsString()
   code: string;
 
@@ -18,9 +26,6 @@ export class CreateProductDto {
 
   @IsString()
   brand: string;
-
-  @IsNumber()
-  price: number;
 
   @IsNumber()
   cost: number;
@@ -35,16 +40,20 @@ export class CreateProductDto {
   weightKg: number;
 
   @IsNumber()
+  @IsInt()
   unitsPerBox: number;
 
   @IsNumber()
+  @IsInt()
   unitsPerBulk: number;
 
   @IsBoolean()
-  onOffer: boolean;
+  @IsOptional()
+  onOffer?: boolean = false;
 
   @IsBoolean()
-  isNew: boolean;
+  @IsOptional()
+  isNew?: boolean = false;
 
   @IsString()
   @IsOptional()
@@ -54,12 +63,15 @@ export class CreateProductDto {
   subcategoryId: string;
 
   @IsNumber()
+  @IsInt()
   supplierId: number;
 
-  @IsString()
+  @IsString() // Asumiendo que el storeId se sigue enviando para el stock inicial en una tienda
   storeId: string;
 
   @IsNumber()
+  @IsInt()
+  @Min(0)
   initialStock: number;
 
   @IsArray()
@@ -68,13 +80,31 @@ export class CreateProductDto {
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
   wholesalePrice?: number;
 
   @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(1)
   minWholesaleQty?: number;
 
   @IsBoolean()
   @IsOptional()
-  hidden?: boolean;
+  hidden?: boolean = false;
+
+
+  // --- NUEVOS CAMPOS PARA DESCUENTOS ---
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProductVolumeDiscountDto)
+  volumeDiscounts?: CreateProductVolumeDiscountDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProductBoxConfigDto)
+  boxConfigurations?: CreateProductBoxConfigDto[];
+  // --- FIN NUEVOS CAMPOS ---
 }
