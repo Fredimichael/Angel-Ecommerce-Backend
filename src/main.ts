@@ -38,7 +38,10 @@ async function bootstrap() {
 
   // Configuración CORS mejorada
   app.enableCors({
-    origin: ['http://localhost:5173', 'https://mitunelreact.loca.lt','https://washing-fairfield-dispatched-ocean.trycloudflare.com'],
+    origin: [
+      'http://localhost:5173', 
+      'http://192.168.1.103:5173' // <-- CORREGIDO A HTTP
+    ], 
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
@@ -91,10 +94,9 @@ async function bootstrap() {
     });
   }
 
-  await app.listen(process.env.PORT || 3000, () => {
-    console.log(`Server running on port ${process.env.PORT || 3000}`);
-    console.log(`CORS configured for: http://localhost:5173`);
-  });
+await app.listen(process.env.PORT || 3000, '0.0.0.0', () => { 
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
+});
 }
 
 bootstrap();

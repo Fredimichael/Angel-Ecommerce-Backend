@@ -443,4 +443,35 @@ export class ProductsService {
       throw new InternalServerErrorException('Error al buscar productos por sucursal.');
     }
   }
+
+  // Método para buscar productos por nombre, código o código de barras
+  async searchProducts(query: string): Promise<Product[]> {
+    if (!query || query.trim() === '') {
+      throw new BadRequestException('La consulta de búsqueda no puede estar vacía.');
+    }
+
+    try {
+      const products = await this.prisma.product.findMany({
+        where: {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { code: { contains: query, mode: 'insensitive' } },
+            { barcode: { contains: query, mode: 'insensitive' } },
+          ],
+          hidden: false, // No mostrar productos ocultos
+        },
+        include: {
+          subcategory: { include: { category: true } },
+          supplier: true,
+          volumeDiscounts: { orderBy: { minQuantity: 'asc' } },
+          boxConfigurations: { where: { isActive: true }, orderBy: { quantityInBox: 'asc' } },
+        },
+      });
+
+      return products;
+    } catch (error) {
+      console.error('Error al buscar productos:', error);
+      throw new InternalServerErrorException('Error al buscar productos.');
+    }
+  }
 }
